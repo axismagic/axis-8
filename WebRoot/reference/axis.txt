@@ -1,0 +1,122 @@
+Axis快速入门：
+
+在使用Axis访问webservice时，需要引入以下包（8个）：axis.jar(核心包)、axis-ant.jar、commons-discovery-0.2.jar、commons-logging-1.0.4.jar、jaxrpc.jar、log4j-1.2.8.jar、saaj.jar、wsdl4j-1.5.1.jar。
+一、server端：
+package server;
+public class BaseHandlerService {
+ public String handle(String operation){
+  System.out.println("the method start!");
+        return "hello "+operation;
+    }
+}
+二、在web.xml文件中加入axis的配置,该配置的完整内容可从apache axis自带的例子中获得 
+<!-- axis主要配置 -->
+<servlet>
+ <display-name>Apache-Axis Servlet</display-name>
+ <servlet-name>AxisServlet</servlet-name>
+ <servlet-class>org.apache.axis.transport.http.AxisServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+ <servlet-name>AxisServlet</servlet-name>
+ <url-pattern>/servlet/AxisServlet</url-pattern>
+</servlet-mapping>
+<servlet-mapping>
+ <servlet-name>AxisServlet</servlet-name>
+ <url-pattern>*.jws</url-pattern>
+</servlet-mapping>
+<servlet-mapping>
+ <servlet-name>AxisServlet</servlet-name>
+ <url-pattern>/services/*</url-pattern>
+</servlet-mapping>
+
+三、启动tomcat,编写wsdd定制发布web服务
+webservice发布描述文件：deploy.wsdd
+<deployment xmlns="http://xml.apache.org/axis/wsdd/" xmlns:java="http://xml.apache.org/axis/wsdd/providers/java">
+ <service name="baseHandlerService" provider="java:RPC">
+  <parameter name="className" value="server.BaseHandlerService" />
+  <parameter name="allowedMethods" value="*" />
+ </service>
+</deployment>
+这个文件无论放在哪都可以，主要是用adminiClient执行的时候到对应的目录下，这里假设deploy.wsdd放在axis项目的WebRoot目录下
+如果第一次组建WebService项目，并没有server-config.wsdd文件，可以用采用axis发布命令生成一个：
+第一步：DOS命令下导航到项目的WEB-INF/目录下(如：E:\Workspaces\MyEclipse 8.5\axis\WebRoot\WEB-INF)
+第二步：运行axis发布命令：java -Djava.ext.dirs=lib org.apache.axis.client.AdminClient -lhttp://localhost:8080/axis/servlet/AxisServlet  ..\deploy.wsdd
+那么就会在项目WEB-INF目录下生成server-config.wsdd，并且会将deploy.wsdd的内容复制过来，这个文件就是描述WebService发布的
+注意：
+1，执行这个命令一定要启动tomcat，否则会报异常
+2，java -Djava.ext.dirs=lib AdminiClient -l
+-Djava.ext.dirs是让jvm到这个目录下找jar包中的class文件 、-classpath参数不会到包里面找字节码文件,
+-l参数就是告知当前是哪个项目要起webservice服务，那么就在这个项目的WEB-INF目录下生成server-config.wsdd
+3，-Djava.ext.dirs指定的目录不能有空格,例如java -Djava.ext.dirs=E:\Workspaces\MyEclipse 8.5\axis\WebRoot\WEB-INF\lib这样是不行的,dos命令下空格会被认为是分隔符，解决办法是为路径加双引号
+对文件server-config.wsdd的说明：
+a)server-config.wsdd文件是个webservice发布描述文件（wsdd:WebServiceDeploymentDescriptor），包含了全部的对外发布的service
+b)除了使用上述axis命令生成server-config.wsdd外，因server-config.wsdd文件其实是个模板，还可以通过axis.jar解压（org\apache\axis\server\server-config.wsdd）获取。
+c)server-config.wsdd文件已经存在,如果还要发布service，可以将service配置手工追加到server-config.wsdd
+d)当web容器（web.xml中已经配置了axisServelt，同时也添加了相关jar包后）启动后，如果访问axis的相关服务，它将默认去找WEB-INF/下的：server-config.wsdd。
+e)访问:http://localhost:8080/axis/services 就能看到axis这个项目开放的webservice服务列表
+对wsdl文件的说明：
+wsdl文件（WebServiceDescriptionLanguage）是一个基于xml的webservice描述语言，用来描述Web服务的标准和调用的接口以及服务交互的数据格式和必要协议，访问http://localhost:8080/axis/services/baseHandlerService?wsdl可以得到，一般需要把该文件给客户端。
+
+四、client端：
+package client;
+import java.rmi.RemoteException;
+import org.apache.axis.client.Call; 
+import org.apache.axis.client.Service;
+public class BaseHandlerClient{
+  public static void main(String[] args) {
+   String ret =null;
+   try {
+    String url = "http://localhost:8080/axis/services/baseHandlerService?wsdl";
+    Service service = new Service();
+    Call call = (Call) service.createCall();// 通过service创建call对象
+    call.setTargetEndpointAddress(new java.net.URL(url));//设置call对象的目标端点地址(调用的目标url地址)
+    call.setOperationName(new QName("handle"));//设置调用的方法,在wsdl中描述为操作(input,output)
+    ret = (String) call.invoke(new Object[] {"传给方法的参数，相当于wsdl portType中input"});
+    System.out.println("返回值===" + ret);//方法返回值，相当于wsdl portType中output
+   } catch (RemoteException e) {
+    e.printStackTrace();
+   } catch (Exception e){
+    e.printStackTrace();
+   }
+  }
+}
+
+五、卸载webservice(确保tomcat启动)
+在某个目录下编写undeploy.wsdd
+<undeployment xmlns="http://xml.apache.org/axis/wsdd/">  
+ <service name="baseHandlerService"/>  
+</undeployment>
+再执行命令java -Djava.ext.dirs=lib org.apache.axis.client.AdminClient -lhttp://localhost:8080/axis/servlet/AxisServlet  undeploy.wsdd
+这样WEB-INF目录下的server-config.wsdd文件里就去掉了名为baseHandlerService的service配置,当然也可以直接在server-config.wsdd文件中手工删除service
+
+
+六、生成客户端存根文件(client stub)
+wsdl2java命令：用于根据WSDL生成相应的服务端和客户端代码的生成工具。 
+Axis1.x: java -Djava.ext.dirs=. org.apache.axis.wsdl.WSDL2Java 
+例如：
+1)cd /d E:\Workspaces\MyEclipse 8.5\axis\WebRoot\WEB-INF\lib
+2)java -Djava.ext.dirs=. org.apache.axis.wsdl.WSDL2Java -s http://localhost:8080/axis/services/baseHandlerService?wsdl -o e:\stub
+-s 是设置wsdl的路径url或者是当前物理硬盘上的wsdl文件（可以将页面上的wsdl另存为一份xml文件）
+-o 是设置转换的文件的输出目录
+Axis2: 命令行格式为：WSDL2Java [options] -uri <url or path>
+例如：
+E:\axis2-bin-1.4.1\bin>wsdl2java -uri http://localhost:8080/axis/services/baseHandlerService?wsdl -p com.practice.stub -s -o e:\stub
+参数解释：
+-p <package>:指定代码的package包名 
+-s:生成同步模式的代码 
+-o<path>:指定生成代码的输出路径 
+
+
+七、调试工具类
+
+执行命令：java -Djava.ext.dirs=lib org.apache.axis.utils.tcpmon
+例如：
+1)cd /d E:\Workspaces\MyEclipse 8.5\axis\WebRoot\WEB-INF\lib
+2)java -Djava.ext.dirs=. org.apache.axis.utils.tcpmon
+org.apache.axis.utils.tcpmon是一个端口监听的工具类，它可以监听到指定host、port的WebService通信信息，在Listen Port填写你要监听的端口即可
+注意：监听的端口不是服务器的端口，比如当前访问的服务器端口8080,那么在Listen Port填写的端口不是8080，而是其它任意指定的端口8081,然后可以通过8081来访问服务
+
+ 
+
+至此，webservice定制发布服务的快速入门介绍完了
+

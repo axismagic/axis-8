@@ -1,0 +1,13 @@
+<deployment xmlns="http://xml.apache.org/axis/wsdd/"
+	xmlns:java="http://xml.apache.org/axis/wsdd/providers/java">
+	<service name="baseHandlerService" provider="java:RPC">
+		<parameter name="className" value="server.BaseHandlerService" />
+		<!-- * 代表所有的方法都暴露给客户端调用-->
+		<parameter name="allowedMethods" value="*" />
+	</service>
+</deployment>
+<!--
+	<undeployment xmlns="http://xml.apache.org/axis/wsdd/">
+		<service name="baseHandlerService"/> 
+	</undeployment>
+-->
